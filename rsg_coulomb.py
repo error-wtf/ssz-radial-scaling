@@ -40,6 +40,9 @@ def solve_bohr_spectrum_rsg(n_max=5, l=0, kappa=KAPPA_H, hbar=HBAR, m=M_E):
 
     Returns list of (n, E_wkb, E_exact, rel_error) for
     n = l+1, l+2, ..., l+n_max.
+
+    Search range: from 2 * E_exact (deeper than exact) up to -1e-6.
+    This is wide enough to bracket any bound state for n up to ~10.
     """
     V = lambda r: coulomb_potential(r, kappa)
     results = []
@@ -48,8 +51,10 @@ def solve_bohr_spectrum_rsg(n_max=5, l=0, kappa=KAPPA_H, hbar=HBAR, m=M_E):
         n = n_r + l + 1
         E_exact = bohr_energy_exact(n, kappa, hbar, m)
 
-        E_search_min = min(E_exact * 1.5, -20.0)
-        E_search_max = max(E_exact * 0.5, -1e-8)
+        # Search from twice as deep as exact energy to just below zero.
+        # E_exact is negative, so 2*E_exact is deeper (more negative).
+        E_search_min = 2.0 * E_exact
+        E_search_max = -1e-6
 
         try:
             E_wkb = bohr_sommerfeld_energy(
