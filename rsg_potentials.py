@@ -15,7 +15,8 @@ Potentials tested:
 Exact energies (where known):
   HO:     E(n,l) = hbar*omega*(2n + l + 3/2)   [n = radial quantum number]
   Morse:  E_v = hbar*omega_e*(v+1/2) - hbar*omega_e*x_e*(v+1/2)^2
-  Kratzer: E(n,l) = -D_e * [1 - alpha/(n+l+1-epsilon)]^2  (approx)
+  Kratzer: E(n,l) = -m*D_e^2*r_e^4 / (2*hbar^2*(n_r+gamma)^2)
+           gamma = 0.5 + sqrt((l+0.5)^2 + 2*m*D_e*r_e^2/hbar^2)
 
 Authors: Carmen N. Wrede, Lino P. Casu, Bingsi
 """
@@ -149,17 +150,17 @@ def kratzer_potential(r, D_e=5.0, r_e=2.0):
 def kratzer_energy_exact(n_r, l, D_e=5.0, r_e=2.0, hbar=HBAR, m=M_E):
     """Exact Kratzer energy levels.
 
-    E(n_r, l) = -m*D_e*r_e^2 / (hbar^2 * (n_r + gamma)^2 / 2)
-    where gamma = 0.5 + sqrt((l+0.5)^2 + 2*m*D_e*r_e^2/hbar^2)
+    E(n_r, l) = -m * D_e^2 * r_e^4 / (2 * hbar^2 * N^2)
+    where N = n_r + gamma
+    and   gamma = 0.5 + sqrt((l+0.5)^2 + 2*m*D_e*r_e^2/hbar^2)
 
     In atomic units (hbar=m=1):
       gamma = 0.5 + sqrt((l+0.5)^2 + 2*D_e*r_e^2)
-      E = -D_e*r_e^2 / (2*(n_r + gamma)^2 / 2)  ... simplified below
     """
     langer_l = (l + 0.5)**2
     gamma = 0.5 + np.sqrt(langer_l + 2.0 * m * D_e * r_e**2 / hbar**2)
     N = n_r + gamma
-    return -m * D_e**2 * r_e**4 / (hbar**2 * 2.0) * (2.0 * m / hbar**2) / N**2
+    return -m * D_e**2 * r_e**4 / (2.0 * hbar**2 * N**2)
 
 
 def solve_kratzer_spectrum_rsg(n_max=4, l=0, D_e=5.0, r_e=2.0,
@@ -209,5 +210,5 @@ def wkb_scan(V_func, n_r, l, E_min, E_max, label="",
             use_langer=use_langer, hbar=hbar, m=m
         )
         return E, True
-    except Exception as e:
+    except Exception:
         return float('nan'), False
