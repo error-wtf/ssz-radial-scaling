@@ -35,7 +35,6 @@ def shoot(E, l=0, kappa=1.0, r_max_factor=5.0):
         ddu = (l * (l + 1) / r**2 + 2.0 * ((-kappa / r) - E)) * u
         return [du, ddu]
 
-    # Initial conditions: u ~ r^(l+1) near origin
     u0 = r_min**(l + 1)
     du0 = (l + 1) * r_min**l
     sol = solve_ivp(rhs, [r_min, r_max], [u0, du0],
@@ -121,10 +120,8 @@ class TestNumericalVerification:
             use_langer=True
         )
         E_num = find_eigenvalue(0, l=0)
-        # Both should be within 0.1% of the exact value
         assert abs(E_wkb - E_exact) / abs(E_exact) < 0.001
         assert abs(E_num - E_exact) / abs(E_exact) < 0.001
-        # And agree with each other within 0.2%
         assert abs(E_wkb - E_num) / abs(E_exact) < 0.002, (
             f"WKB={E_wkb:.6f} vs Numerical={E_num:.6f}: disagree"
         )
@@ -149,3 +146,70 @@ class TestNumericalVerification:
             assert energies[i] < energies[i + 1] < 0, (
                 f"Spectrum not ordered at i={i}: {energies}"
             )
+
+    # ------------------------------------------------------------------
+    # SSZ-Logik: Unabhaengige numerische Bestaetigung der Geometrie
+    # ------------------------------------------------------------------
+
+    def test_numerical_n_squared_scaling(self):
+        """SSZ: Numerisch gefundene Eigenwerte folgen E*n^2 = const.
+
+        Das ist die parameterfreie Skalierungsregel der RSG-Geometrie:
+        E_n * n^2 = -1/2 (in a.u.) -- vollstaendig unabhaengig von WKB.
+        Der numerische ODE-Solver bestaetigt dieselbe Gesetzmassigkeit.
+        """
+        const_values = []
+        for n_r in range(3):
+            n = n_r + 1
+            E_num = find_eigenvalue(n_r, l=0)
+            const_values.append(E_num * n**2)
+        for i, c in enumerate(const_values):
+            assert abs(c - (-0.5)) < 0.005, (
+                f"n={i+1}: E_num*n^2 = {c:.5f}, expected -0.5"
+            )
+
+    def test_numerical_degeneracy_l0_l1(self):
+        """SSZ: n=2 ist l=0 (n_r=1) und l=1 (n_r=0) degenerat.
+
+        Die Coulomb-Entartung E(n=2,l=0) = E(n=2,l=1) ist eine
+        Konsequenz der O(4)-Symmetrie des Coulomb-Problems.
+        Beide numerischen Loesungen muessen dieselbe Energie liefern.
+        """
+        E_l0 = find_eigenvalue(n_r=1, l=0)
+        E_l1 = find_eigenvalue(n_r=0, l=1)
+        E_exact = bohr_energy_exact(2)
+        assert abs(E_l0 - E_exact) / abs(E_exact) < 0.001
+        assert abs(E_l1 - E_exact) / abs(E_exact) < 0.001
+        assert abs(E_l0 - E_l1) / abs(E_exact) < 0.002, (
+            f"Degeneracy broken: E(l=0)={E_l0:.6f}, E(l=1)={E_l1:.6f}"
+        )
+
+    def test_langer_correction_proven_numerically(self):
+        """SSZ: Numerischer Beweis dass Langer-WKB besser als naiv-WKB.
+
+        Voellig unabhaengige Methode: ODE-Solver gibt Referenz,
+        dann wird Langer-WKB-Fehler mit naiv-WKB-Fehler verglichen.
+        Langer muss fuer l>0 besser sein (geometrisch begruendet).
+        """
+        V = lambda r: coulomb_potential(r)
+        l = 1
+        n = l + 1
+        E_exact = bohr_energy_exact(n)
+        E_num = find_eigenvalue(0, l=l)
+        E_langer = bohr_sommerfeld_energy(
+            0, l, V, E_min=E_exact * 1.5, E_max=E_exact * 0.5,
+            use_langer=True
+        )
+        E_naive = bohr_sommerfeld_energy(
+            0, l, V, E_min=E_exact * 1.5, E_max=E_exact * 0.5,
+            use_langer=False
+        )
+        err_langer = abs(E_langer - E_num) / abs(E_num)
+        err_naive = abs(E_naive - E_num) / abs(E_num)
+        assert err_langer < 0.001, (
+            f"Langer vs numerical: err={err_langer:.2e} > 0.1%"
+        )
+        assert err_langer < err_naive, (
+            f"Langer ({err_langer:.2e}) should beat naive ({err_naive:.2e})"
+            f" vs numerical reference"
+        )

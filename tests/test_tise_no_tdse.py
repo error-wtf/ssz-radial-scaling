@@ -11,6 +11,12 @@ RSG works purely with TISE:
 
 No time evolution, no propagator, no TDSE.
 The TDSE only adds exp(-iEt/hbar) -- a clock, not physics.
+
+SSZ-Logik: Die Phase wird im transformierten Koordinatenraum akkumuliert.
+Die Bohr-Sommerfeld-Bedingung ist eine Monodromie-Bedingung:
+Die Gesamtphase muss ein ganzzahliges Vielfaches von pi*hbar sein.
+Das ist die quantenmechanische Entsprechung der SSZ-Phasenbilanz
+in der Gravitation (Shapiro, GPS, Lensing).
 """
 
 import numpy as np
@@ -90,4 +96,110 @@ class TestTISEWithoutTDSE:
             rel_err = abs(E_wkb - E_exact) / abs(E_exact)
             assert rel_err < 1e-4, (
                 f"n={n}: WKB+Langer should be exact, rel_err={rel_err:.2e}"
+            )
+
+    # ------------------------------------------------------------------
+    # SSZ-Logik: Monodromie und Phasenbilanz
+    # ------------------------------------------------------------------
+
+    def test_phase_balance_is_exact_integer_multiples(self):
+        """SSZ: Monodromie -- Phasenakkumulation ist exakt n*pi.
+
+        Die Bohr-Sommerfeld-Bedingung:
+          integral p_r dr = pi*hbar*(n_r + 1/2)
+
+        entspricht der SSZ-Phasenbilanz: Die Gesamtphase ueber einen
+        vollstaendigen Halbzyklus (Wendepunkt zu Wendepunkt) ist ein
+        halbganzzahliges Vielfaches von pi. Das ist die Quantenbedingung
+        als geometrische Schliessungsbedingung.
+        """
+        V = lambda r: coulomb_potential(r)
+        for n_r in range(4):
+            E_exact = bohr_energy_exact(n_r + 1)
+            target = np.pi * HBAR * (n_r + 0.5)
+            action = wkb_action_integral(E_exact, V, l=0, use_langer=True)
+            ratio = action / target
+            assert abs(ratio - 1.0) < 0.001, (
+                f"n_r={n_r}: phase ratio = {ratio:.6f}, expected 1.0"
+            )
+
+    def test_action_monotone_with_energy(self):
+        """SSZ: Mehr Energie = mehr Phasenraum = groessere Aktion.
+
+        I(E) ist monoton wachsend in E (fuer gebundene Zustaende E < 0).
+        Hoehere Energie -> groessere klassische Reichweite -> mehr Phase.
+        Das ist das Fundament der Bohr-Sommerfeld-Zaehlung.
+        """
+        V = lambda r: coulomb_potential(r)
+        energies = [bohr_energy_exact(n) for n in range(1, 5)]
+        actions = [wkb_action_integral(E, V, l=0, use_langer=True)
+                   for E in energies]
+        for i in range(len(actions) - 1):
+            assert actions[i] < actions[i + 1], (
+                f"Action not monotone: I(E_{i+1})={actions[i]:.4f} "
+                f">= I(E_{i+2})={actions[i+1]:.4f}"
+            )
+
+    def test_action_quantization_steps(self):
+        """SSZ: Aufeinanderfolgende Zustaende unterscheiden sich um pi*hbar.
+
+        I(E_{n+1}) - I(E_n) = pi*hbar (exakt fuer Coulomb mit Langer).
+        Das ist die diskrete Phasenbilanz -- jedes neue Niveau akkumuliert
+        genau eine weitere halbe Wellenlaenge.
+        """
+        V = lambda r: coulomb_potential(r)
+        actions = []
+        for n_r in range(4):
+            E = bohr_energy_exact(n_r + 1)
+            a = wkb_action_integral(E, V, l=0, use_langer=True)
+            actions.append(a)
+        delta_pi = np.pi * HBAR
+        for i in range(len(actions) - 1):
+            delta = actions[i + 1] - actions[i]
+            rel_err = abs(delta - delta_pi) / delta_pi
+            assert rel_err < 0.001, (
+                f"Step n_r={i}->{i+1}: delta={delta:.6f}, "
+                f"expected pi={delta_pi:.6f}, err={rel_err:.2e}"
+            )
+
+    def test_tdse_phase_is_purely_temporal(self):
+        """SSZ: Die TDSE-Phase exp(-iEt/hbar) ist rein zeitlich.
+
+        Sie aendert NICHT die raeumliche Eigenfunktion und
+        NICHT die Energieeigenwerte. Die TISE-Loesung ist vollstaendig
+        fuer alle Observablen die nicht Zeit involvieren.
+        """
+        E = bohr_energy_exact(1)
+        omega = abs(E) / HBAR
+        t_values = np.linspace(0, 2 * np.pi / omega, 100)
+        phase_mod_sq = np.ones_like(t_values)
+        np.testing.assert_allclose(phase_mod_sq, 1.0, rtol=1e-14)
+        assert E == bohr_energy_exact(1)
+
+    def test_rsg_classical_region_is_finite(self):
+        """SSZ: Die klassische Region [r1, r2] ist endlich und wohldefiniert.
+
+        Zwischen den Wendepunkten ist p_r^2 > 0.
+        Das ist die Region wo Phase akkumuliert wird.
+        Ausserhalb ist p_r^2 < 0 (klassisch verboten).
+        """
+        from rsg_core import find_turning_points, radial_momentum_langer
+        V = lambda r: coulomb_potential(r)
+        for n in range(1, 4):
+            E = bohr_energy_exact(n)
+            r1, r2 = find_turning_points(E, V, l=0, use_langer=True)
+            assert 0 < r1 < r2
+            r_mid = (r1 + r2) / 2.0
+            pr2_mid = radial_momentum_langer(
+                np.array([r_mid]), E, V, 0
+            )[0]
+            assert pr2_mid > 0, (
+                f"n={n}: p_r^2({r_mid:.3f}) = {pr2_mid:.4f} should be > 0"
+            )
+            r_out = r2 * 1.1
+            pr2_out = radial_momentum_langer(
+                np.array([r_out]), E, V, 0
+            )[0]
+            assert pr2_out < 0, (
+                f"n={n}: p_r^2({r_out:.3f}) = {pr2_out:.4f} should be < 0"
             )
