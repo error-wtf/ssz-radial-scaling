@@ -86,3 +86,4 @@ stretch in the Regge-Wheeler tortoise coordinate.
 > C. N. Wrede, L. P. Casu, Bingsi,
 > *Radial Scaling Gauge in Quantum Mechanics: The Coulomb Problem, the Langer
 > Transformation, and Geometric Phase Accounting* (2025)
+> https://www.researchgate.net/publication/404569410_Radial_Scaling_Gauge_in_Quantum_Mechanics_The_Coulomb_Problem_the_Langer_Transformation_and_Geometric_Phase_Accounting
